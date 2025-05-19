@@ -13,7 +13,7 @@ csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:cs
 # 📥 โหลดข้อมูล
 try:
     df = pd.read_csv(csv_url)
-    st.title("อยากให้เก็บใน googlesheet ได้จัง")
+    st.title("อยากให้เก็บใน googlesheetได้จัง")
     st.success("โหลดข้อมูลสำเร็จ ✅")
     st.dataframe(df)
 
