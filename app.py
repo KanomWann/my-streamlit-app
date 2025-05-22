@@ -15,32 +15,20 @@ csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:cs
 try:
     df = pd.read_csv(csv_url)
 
-    # ตรวจสอบและเปลี่ยนชื่อคอลัมน์ Time -> Timestamp
-    if "Time" in df.columns:
-        df.rename(columns={"Time": "Timestamp"}, inplace=True)
-
-    # ตรวจสอบว่ามีคอลัมน์ Timestamp หรือไม่
-    if "Timestamp" not in df.columns:
-        st.error("ไม่พบคอลัมน์ Timestamp ในข้อมูล")
-        st.stop()
+    # เปลี่ยนชื่อคอลัมน์ Time → Timestamp
+    df.rename(columns={"Time": "Timestamp"}, inplace=True)
 
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], dayfirst=True, errors='coerce')
     df = df.dropna(subset=['Timestamp'])
 
     df["DateOnly"] = df["Timestamp"].dt.date
     available_dates = sorted(df["DateOnly"].unique(), reverse=True)
-
-    if not available_dates:
-        st.error("ไม่พบข้อมูลวันใน Google Sheet")
-        st.stop()
-
     selected_date = st.sidebar.date_input(
         "📅 เลือกวันที่",
         value=available_dates[0],
         min_value=min(available_dates),
         max_value=max(available_dates),
     )
-
     df_filtered = df[df["DateOnly"] == selected_date]
 
     # ----------------- กำหนดจำนวน Node -----------------
@@ -49,11 +37,8 @@ try:
             st.session_state.node_count = 2
 
         node_count = st.number_input(
-            "จำนวน Node ทั้งหมด",
-            min_value=1,
-            max_value=60,
-            value=st.session_state.node_count,
-            step=1,
+            "จำนวน Node ทั้งหมด", min_value=1, max_value=60,
+            value=st.session_state.node_count, step=1,
         )
         st.session_state.node_count = node_count
 
@@ -61,19 +46,16 @@ try:
     if "nodes" not in st.session_state:
         st.session_state.nodes = {}
 
-    existing_nodes = list(st.session_state.nodes.keys())
-    for node in existing_nodes:
+    # ลบ node ที่เกิน
+    for node in list(st.session_state.nodes):
         node_num = int(node.split()[1])
-        if node_num > st.session_state.node_count:
+        if node_num > node_count:
             st.session_state.nodes.pop(node)
-            if "temp_settings" in st.session_state:
-                st.session_state.temp_settings.pop(node, None)
-            if "selected_nodes" in st.session_state:
-                st.session_state.selected_nodes = [
-                    n for n in st.session_state.selected_nodes if n != node
-                ]
+            st.session_state.temp_settings.pop(node, None)
+            st.session_state.selected_nodes.remove(node) if node in st.session_state.selected_nodes else None
 
-    for i in range(1, st.session_state.node_count + 1):
+    # เพิ่ม node ใหม่
+    for i in range(1, node_count + 1):
         node_name = f"Node {i:02d}"
         if node_name not in st.session_state.nodes:
             st.session_state.nodes[node_name] = [f"Node{i}A", f"Node{i}B", f"Node{i}C"]
@@ -82,7 +64,6 @@ try:
     with st.sidebar.expander("🔘 เลือก Node ที่จะแสดง", expanded=True):
         if "selected_nodes" not in st.session_state:
             st.session_state.selected_nodes = list(st.session_state.nodes.keys())
-
         selected_nodes = st.multiselect(
             "เลือก Node ที่จะแสดง",
             options=list(st.session_state.nodes.keys()),
@@ -95,8 +76,7 @@ try:
             for node in selected_nodes:
                 st.session_state.nodes.pop(node, None)
                 st.session_state.temp_settings.pop(node, None)
-                if node in st.session_state.selected_nodes:
-                    st.session_state.selected_nodes.remove(node)
+                st.session_state.selected_nodes.remove(node)
             st.experimental_rerun()
 
     # ----------------- ตั้งค่าอุณหภูมิ -----------------
@@ -111,16 +91,8 @@ try:
                 st.session_state.temp_settings[node] = {"high": 60, "over": 80}
 
         setting_node = st.selectbox("เลือก Node ที่ต้องการตั้งค่า", list(st.session_state.nodes.keys()))
-        high_temp = st.number_input(
-            "High Temp (°C)",
-            value=st.session_state.temp_settings[setting_node]["high"],
-            key=f"high_{setting_node}",
-        )
-        over_temp = st.number_input(
-            "Over Temp (°C)",
-            value=st.session_state.temp_settings[setting_node]["over"],
-            key=f"over_{setting_node}",
-        )
+        high_temp = st.number_input("High Temp (°C)", value=st.session_state.temp_settings[setting_node]["high"])
+        over_temp = st.number_input("Over Temp (°C)", value=st.session_state.temp_settings[setting_node]["over"])
         st.session_state.temp_settings[setting_node]["high"] = high_temp
         st.session_state.temp_settings[setting_node]["over"] = over_temp
 
@@ -128,24 +100,24 @@ try:
     st.title("📊 Temperature Monitor Dashboard")
 
     def render_temp_bar(temp, max_temp=125):
+        if pd.isna(temp):
+            st.warning("⚠️ ไม่มีข้อมูล")
+            return
         percent = min(100, int(temp / max_temp * 100))
         st.progress(percent)
-        st.write(f"{temp}°C")
+        st.write(f"{temp:.1f}°C")
 
     if "graph_state" not in st.session_state:
         st.session_state.graph_state = {}
 
     # ----------------- Style -----------------
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             .node-box { background-color: #dcd6f7; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
             .alert-high { color: white; background-color: orange; padding: 3px 8px; border-radius: 5px; }
             .alert-over { color: white; background-color: red; padding: 3px 8px; border-radius: 5px; }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
     for node_name, columns in st.session_state.nodes.items():
         if node_name not in st.session_state.selected_nodes:
@@ -160,15 +132,15 @@ try:
             continue
 
         latest = df_filtered.sort_values("Timestamp", ascending=False).iloc[0]
-        temps = [latest[col] for col in columns]
+        temps = [latest[col] if pd.notna(latest[col]) else None for col in columns]
 
         high = st.session_state.temp_settings[node_name]["high"]
         over = st.session_state.temp_settings[node_name]["over"]
 
         alert_style = ""
-        if any(t >= over for t in temps):
+        if any(t is not None and t >= over for t in temps):
             alert_style = "alert-over"
-        elif any(t >= high for t in temps):
+        elif any(t is not None and t >= high for t in temps):
             alert_style = "alert-high"
 
         with st.container():
@@ -196,16 +168,12 @@ try:
                 melted_df = chart_data.melt(
                     id_vars=["Timestamp"], value_vars=columns, var_name="Phase", value_name="Temperature"
                 )
-
-                min_temp = melted_df["Temperature"].min() - 5
-                max_temp = melted_df["Temperature"].max() + 5
-
                 chart = (
                     alt.Chart(melted_df)
                     .mark_line()
                     .encode(
                         x=alt.X("Timestamp:T", title="เวลา", axis=alt.Axis(format="%H:%M")),
-                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[min_temp, max_temp])),
+                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[25, 70])),
                         color="Phase:N",
                     )
                     .properties(width="container", height=300, title=f"กราฟแสดงอุณหภูมิ: {node_name}")
