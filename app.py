@@ -14,23 +14,39 @@ csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:cs
 
 try:
     df = pd.read_csv(csv_url)
-    df['Time'] = pd.to_datetime(df['Time'], dayfirst=True, errors='coerce')
-    df = df.dropna(subset=['Time'])
 
-    df["DateOnly"] = df["Time"].dt.date
+    # ตรวจสอบและเปลี่ยนชื่อคอลัมน์ Time -> Timestamp
+    if "Time" in df.columns:
+        df.rename(columns={"Time": "Timestamp"}, inplace=True)
+
+    # ตรวจสอบว่ามีคอลัมน์ Timestamp หรือไม่
+    if "Timestamp" not in df.columns:
+        st.error("ไม่พบคอลัมน์ Timestamp ในข้อมูล")
+        st.stop()
+
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], dayfirst=True, errors='coerce')
+    df = df.dropna(subset=['Timestamp'])
+
+    df["DateOnly"] = df["Timestamp"].dt.date
     available_dates = sorted(df["DateOnly"].unique(), reverse=True)
+
+    if not available_dates:
+        st.error("ไม่พบข้อมูลวันใน Google Sheet")
+        st.stop()
+
     selected_date = st.sidebar.date_input(
         "📅 เลือกวันที่",
         value=available_dates[0],
         min_value=min(available_dates),
         max_value=max(available_dates),
     )
+
     df_filtered = df[df["DateOnly"] == selected_date]
 
     # ----------------- กำหนดจำนวน Node -----------------
     with st.sidebar.expander("🔢 กำหนดจำนวน Node", expanded=True):
         if "node_count" not in st.session_state:
-            st.session_state.node_count = 2  # ค่าเริ่มต้น
+            st.session_state.node_count = 2
 
         node_count = st.number_input(
             "จำนวน Node ทั้งหมด",
@@ -41,34 +57,32 @@ try:
         )
         st.session_state.node_count = node_count
 
-    # ----------------- สร้าง Node อัตโนมัติตามจำนวน -----------------
+    # ----------------- สร้าง Node -----------------
     if "nodes" not in st.session_state:
         st.session_state.nodes = {}
 
-    # สร้าง nodes ใหม่ตามจำนวน node_count ที่กำหนด
-    # โดยลบ node เก่าที่เกินจำนวนออกก่อน
     existing_nodes = list(st.session_state.nodes.keys())
-    # ลบ node ที่เลขมากกว่าที่กำหนด (ถ้ามี)
     for node in existing_nodes:
         node_num = int(node.split()[1])
         if node_num > st.session_state.node_count:
             st.session_state.nodes.pop(node)
-            if "temp_settings" in st.session_state and node in st.session_state.temp_settings:
-                st.session_state.temp_settings.pop(node)
-            if "selected_nodes" in st.session_state and node in st.session_state.selected_nodes:
-                st.session_state.selected_nodes.remove(node)
+            if "temp_settings" in st.session_state:
+                st.session_state.temp_settings.pop(node, None)
+            if "selected_nodes" in st.session_state:
+                st.session_state.selected_nodes = [
+                    n for n in st.session_state.selected_nodes if n != node
+                ]
 
-    # เพิ่ม node ใหม่ที่ยังไม่มีใน dict
     for i in range(1, st.session_state.node_count + 1):
         node_name = f"Node {i:02d}"
         if node_name not in st.session_state.nodes:
-            col_names = [f"Node{i}A", f"Node{i}B", f"Node{i}C"]
-            st.session_state.nodes[node_name] = col_names
+            st.session_state.nodes[node_name] = [f"Node{i}A", f"Node{i}B", f"Node{i}C"]
 
     # ----------------- เลือก Node -----------------
     with st.sidebar.expander("🔘 เลือก Node ที่จะแสดง", expanded=True):
         if "selected_nodes" not in st.session_state:
             st.session_state.selected_nodes = list(st.session_state.nodes.keys())
+
         selected_nodes = st.multiselect(
             "เลือก Node ที่จะแสดง",
             options=list(st.session_state.nodes.keys()),
@@ -77,13 +91,10 @@ try:
         )
         st.session_state.selected_nodes = selected_nodes
 
-        # ปุ่มลบ Node ที่เลือก (ลบได้ทีละหลายตัว)
         if st.button("🗑️ ลบ Node ที่เลือก"):
             for node in selected_nodes:
-                if node in st.session_state.nodes:
-                    st.session_state.nodes.pop(node)
-                if "temp_settings" in st.session_state and node in st.session_state.temp_settings:
-                    st.session_state.temp_settings.pop(node)
+                st.session_state.nodes.pop(node, None)
+                st.session_state.temp_settings.pop(node, None)
                 if node in st.session_state.selected_nodes:
                     st.session_state.selected_nodes.remove(node)
             st.experimental_rerun()
@@ -95,14 +106,11 @@ try:
                 node: {"high": 60, "over": 80} for node in st.session_state.nodes
             }
 
-        # ถ้าเพิ่ม node ใหม่ ให้กำหนดค่า default ให้
         for node in st.session_state.nodes:
             if node not in st.session_state.temp_settings:
                 st.session_state.temp_settings[node] = {"high": 60, "over": 80}
 
-        setting_node = st.selectbox(
-            "เลือก Node ที่ต้องการตั้งค่า", list(st.session_state.nodes.keys())
-        )
+        setting_node = st.selectbox("เลือก Node ที่ต้องการตั้งค่า", list(st.session_state.nodes.keys()))
         high_temp = st.number_input(
             "High Temp (°C)",
             value=st.session_state.temp_settings[setting_node]["high"],
@@ -151,7 +159,7 @@ try:
             st.info(f"{node_name}: ไม่มีข้อมูลในวันที่ {selected_date}")
             continue
 
-        latest = df_filtered.sort_values("Time", ascending=False).iloc[0]
+        latest = df_filtered.sort_values("Timestamp", ascending=False).iloc[0]
         temps = [latest[col] for col in columns]
 
         high = st.session_state.temp_settings[node_name]["high"]
@@ -184,16 +192,20 @@ try:
                     st.session_state.graph_state[node_name] = not st.session_state.graph_state.get(node_name, False)
 
             if st.session_state.graph_state.get(node_name, False):
-                chart_data = df_filtered[["Time"] + columns].dropna().sort_values("Time")
+                chart_data = df_filtered[["Timestamp"] + columns].dropna().sort_values("Timestamp")
                 melted_df = chart_data.melt(
-                    id_vars=["Time"], value_vars=columns, var_name="Phase", value_name="Temperature"
+                    id_vars=["Timestamp"], value_vars=columns, var_name="Phase", value_name="Temperature"
                 )
+
+                min_temp = melted_df["Temperature"].min() - 5
+                max_temp = melted_df["Temperature"].max() + 5
+
                 chart = (
                     alt.Chart(melted_df)
                     .mark_line()
                     .encode(
-                        x=alt.X("Time:T", title="เวลา", axis=alt.Axis(format="%H:%M")),
-                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[25, 70])),
+                        x=alt.X("Timestamp:T", title="เวลา", axis=alt.Axis(format="%H:%M")),
+                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[min_temp, max_temp])),
                         color="Phase:N",
                     )
                     .properties(width="container", height=300, title=f"กราฟแสดงอุณหภูมิ: {node_name}")
