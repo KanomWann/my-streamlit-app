@@ -18,7 +18,7 @@ try:
     # เปลี่ยนชื่อคอลัมน์ Time → Timestamp
     df.rename(columns={"Time": "Timestamp"}, inplace=True)
 
-    df['Timestamp'] = pd.to_datetime(df['Timestamp'], dayfirst=True, errors='coerce')
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], dayfirst=False, errors='coerce')
     df = df.dropna(subset=['Timestamp'])
 
     df["DateOnly"] = df["Timestamp"].dt.date
