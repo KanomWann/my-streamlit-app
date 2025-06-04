@@ -176,7 +176,7 @@ try:
                     .mark_line()
                     .encode(
                         x=alt.X("Timestamp:T", title="เวลา", axis=alt.Axis(format="%H:%M")),
-                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[25, 70])),
+                        y=alt.Y("Temperature:Q", title="อุณหภูมิ (°C)", scale=alt.Scale(domain=[20, 70])),
                         color="Phase:N",
                     )
                     .properties(width="container", height=300, title=f"กราฟแสดงอุณหภูมิ: {node_name}")
