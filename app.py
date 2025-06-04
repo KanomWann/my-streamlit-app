@@ -34,6 +34,7 @@ try:
         max_value=max(available_dates),
     )
     df_filtered = df[df["DateOnly"] == selected_date]
+    # ลดจำนวนข้อมูลเพิ่มความไว
     desired_rows = 4500
     total_rows = len(df_filtered)
     if total_rows > desired_rows:
