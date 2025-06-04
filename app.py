@@ -6,7 +6,7 @@ import altair as alt
 
 st.set_page_config(layout="wide")
 
-st_autorefresh(interval=10000, key="auto_refresh")
+st_autorefresh(interval=5000, key="auto_refresh")
 
 # ----------------- ดึงข้อมูลจาก Google Sheet -----------------
 sheet_id = "1bCpfnaNO2ofLVqFysHW0vHQy78pYMuFCfb4EjIWznEw"
