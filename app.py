@@ -5,19 +5,6 @@ from streamlit_autorefresh import st_autorefresh
 import altair as alt
 
 st.set_page_config(layout="wide")
-st.markdown("""
-    <style>
-    .stSpinner, .st-emotion-cache-1v0mbdj {
-        display: none !important;
-    }
-    .st-emotion-cache-1erivf3 {
-        background-color: transparent !important;
-    }
-    .stApp {
-        opacity: 1 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 st_autorefresh(interval=10000, key="auto_refresh")
 
