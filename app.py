@@ -34,7 +34,11 @@ try:
         max_value=max(available_dates),
     )
     df_filtered = df[df["DateOnly"] == selected_date]
-
+    desired_rows = 4500
+    total_rows = len(df_filtered)
+    if total_rows > desired_rows:
+        sample_rate = max(1, total_rows // desired_rows)
+        df_filtered = df_filtered.iloc[::sample_rate, :].copy()
     # ----------------- กำหนดจำนวน Node -----------------
     with st.sidebar.expander("🔢 กำหนดจำนวน Node", expanded=True):
         if "node_count" not in st.session_state:
