@@ -5,6 +5,14 @@ from streamlit_autorefresh import st_autorefresh
 import altair as alt
 
 st.set_page_config(layout="wide")
+st.markdown("""
+    <style>
+    .stApp > div:has(.block-container) + div {
+        visibility: hidden;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st_autorefresh(interval=10000, key="auto_refresh")
 
 # ----------------- ดึงข้อมูลจาก Google Sheet -----------------
