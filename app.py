@@ -20,6 +20,9 @@ try:
 
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], dayfirst=False, errors='coerce')
     df = df.dropna(subset=['Timestamp'])
+    temp_columns = [col for col in df.columns if col.startswith("Node") and col[-1] in "ABC"]
+    for col in temp_columns:
+        df[col] = df[col] / 10.0
 
     df["DateOnly"] = df["Timestamp"].dt.date
     available_dates = sorted(df["DateOnly"].unique(), reverse=True)
